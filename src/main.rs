@@ -14,6 +14,9 @@ mod math;
 pub mod player;
 pub mod interface;
 
+#[cfg(test)]
+pub mod backtest;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_path: &str = "src/data/atp_master_sorted.csv";
 
