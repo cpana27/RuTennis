@@ -314,7 +314,8 @@ function App() {
 
           {/* HAUPT GRID */}
           <div style={styles.grid}>
-
+             <MonteCarloPanel result={result} />
+  <BelagRatingPanel result={result} surface={surface} />
             {/* WAHRSCHEINLICHKEIT */}
             <div style={styles.karte}>
               <h3 style={styles.kartenTitel}>📊 Match-Wahrscheinlichkeit</h3>
@@ -529,6 +530,181 @@ function App() {
   );
 }
 
+// ─── MONTE CARLO KOMPONENTE ───────────────────────────────────────────────────
+function MonteCarloPanel({ result }) {
+  const ciBreite = ((result.mc_ci_high - result.mc_ci_low) * 100).toFixed(1);
+  const konfidenz = ciBreite < 8 ? "Hoch" : ciBreite < 15 ? "Mittel" : "Niedrig";
+  const konfidenzFarbe = ciBreite < 8 ? "#4ade80" : ciBreite < 15 ? "#f59e0b" : "#f87171";
+
+  return (
+    <div style={styles.karte}>
+      <h3 style={styles.kartenTitel}>🎲 Monte Carlo Simulation</h3>
+
+      <div style={{
+        background: "#0f172a", borderRadius: "8px", padding: "12px",
+        marginBottom: "14px", fontSize: "12px", color: "#475569"
+      }}>
+        {result.mc_simulations.toLocaleString("de-DE")} simulierte Matches
+      </div>
+
+      {/* Drei Modelle nebeneinander */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "16px" }}>
+        {[
+          { label: "Log. Regression", prob: result.prob_p1, farbe: "#6366f1" },
+          { label: "Monte Carlo",     prob: result.mc_prob_p1, farbe: "#3b82f6" },
+          { label: "Ensemble ⭐",     prob: result.ensemble_prob_p1, farbe: "#a78bfa" },
+        ].map(({ label, prob, farbe }) => (
+          <div key={label} style={{
+            background: "#0f172a", borderRadius: "8px", padding: "12px", textAlign: "center"
+          }}>
+            <div style={{ fontSize: "10px", color: "#475569", marginBottom: "6px", textTransform: "uppercase" }}>
+              {label}
+            </div>
+            <div style={{ fontSize: "1.5em", fontWeight: 800, color: farbe }}>
+              {(prob * 100).toFixed(1)}%
+            </div>
+            <div style={{ fontSize: "11px", color: "#334155" }}>
+              Quote: {(1 / prob).toFixed(2)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Konfidenzintervall Visualisierung */}
+      <div style={{ marginBottom: "14px" }}>
+        <div style={{
+          display: "flex", justifyContent: "space-between",
+          fontSize: "12px", color: "#64748b", marginBottom: "6px"
+        }}>
+          <span>95% Konfidenzintervall</span>
+          <span style={{ color: konfidenzFarbe }}>
+            {konfidenz} (±{(ciBreite / 2).toFixed(1)}%)
+          </span>
+        </div>
+        <div style={{ position: "relative", height: "28px", background: "#0f172a", borderRadius: "6px", overflow: "hidden" }}>
+          {/* Gesamt-Balken P1 */}
+          <div style={{
+            position: "absolute", left: 0, top: 0,
+            width: `${result.mc_prob_p1 * 100}%`, height: "100%",
+            background: "#1e3a5f",
+          }} />
+          {/* Konfidenzintervall-Band */}
+          <div style={{
+            position: "absolute",
+            left: `${result.mc_ci_low * 100}%`,
+            width: `${(result.mc_ci_high - result.mc_ci_low) * 100}%`,
+            height: "100%",
+            background: "#3b82f6",
+            opacity: 0.8,
+          }} />
+          {/* Punkt-Schätzer */}
+          <div style={{
+            position: "absolute",
+            left: `${result.mc_prob_p1 * 100}%`,
+            top: 0, width: "3px", height: "100%",
+            background: "white",
+            transform: "translateX(-50%)",
+          }} />
+          <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            fontSize: "11px", fontWeight: 700, color: "white",
+          }}>
+            {(result.mc_ci_low * 100).toFixed(1)}% — {(result.mc_prob_p1 * 100).toFixed(1)}% — {(result.mc_ci_high * 100).toFixed(1)}%
+          </div>
+        </div>
+      </div>
+
+      {/* Match Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        <div style={styles.miniStat}>
+          <div style={styles.miniStatLabel}>Ø Sätze pro Match</div>
+          <div style={styles.miniStatWert}>{result.mc_avg_sets.toFixed(2)}</div>
+        </div>
+        <div style={styles.miniStat}>
+          <div style={styles.miniStatLabel}>P1 Sieg in 2 Sätzen</div>
+          <div style={styles.miniStatWert}>{(result.mc_prob_straight * 100).toFixed(1)}%</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── BELAG RATING PANEL ───────────────────────────────────────────────────────
+function BelagRatingPanel({ result, surface }) {
+  const belagEmoji = { Hard: "🏟️", Clay: "🧱", Grass: "🌿" };
+
+  return (
+    <div style={styles.karte}>
+      <h3 style={styles.kartenTitel}>
+        {belagEmoji[surface] || "🎾"} Belag-spezifische Analyse ({surface})
+      </h3>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
+        {[
+          {
+            name: result.p1_name,
+            rating: result.surface_rating_p1,
+            overall: result.glicko_p1,
+            matches: result.surface_matches_p1,
+            farbe: "#3b82f6",
+          },
+          {
+            name: result.p2_name,
+            rating: result.surface_rating_p2,
+            overall: result.glicko_p2,
+            matches: result.surface_matches_p2,
+            farbe: "#f59e0b",
+          },
+        ].map(({ name, rating, overall, matches, farbe }) => {
+          const diff = rating - overall;
+          const zuverlässig = matches >= 20;
+          return (
+            <div key={name} style={{
+              background: "#0f172a", borderRadius: "8px", padding: "12px"
+            }}>
+              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
+                {name.split(" ").pop()}
+              </div>
+              <div style={{ fontSize: "1.6em", fontWeight: 800, color: farbe }}>
+                {rating.toFixed(0)}
+              </div>
+              <div style={{ fontSize: "11px", color: "#475569", marginTop: "2px" }}>
+                Gesamt: {overall.toFixed(0)} &nbsp;
+                <span style={{ color: diff >= 0 ? "#4ade80" : "#f87171" }}>
+                  ({diff >= 0 ? "+" : ""}{diff.toFixed(0)})
+                </span>
+              </div>
+              <div style={{ marginTop: "6px", fontSize: "11px" }}>
+                <span style={{
+                  color: zuverlässig ? "#4ade80" : "#f59e0b",
+                  background: zuverlässig ? "#052e1622" : "#42200022",
+                  padding: "2px 6px", borderRadius: "10px",
+                }}>
+                  {matches} Matches {zuverlässig ? "✓" : "⚠ wenig Daten"}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Rating Differenz Balken */}
+      <VergleichsBalken
+        label={`${surface} Rating`}
+        wert1={result.surface_rating_p1}
+        wert2={result.surface_rating_p2}
+        farbe1="#3b82f6"
+        farbe2="#f59e0b"
+      />
+
+      <div style={{ fontSize: "11px", color: "#334155", marginTop: "10px" }}>
+        ⚠️ Bei &lt;20 Belag-Matches: Rating wird mit Gesamt-Rating gemischt
+      </div>
+    </div>
+  );
+}
+
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 const styles = {
   root: {
@@ -696,6 +872,24 @@ const styles = {
     padding: "60px 20px",
     color: "#334155",
   },
+
+  miniStat: {
+  background: "#0f172a",
+  borderRadius: "8px",
+  padding: "10px 12px",
+},
+miniStatLabel: {
+  fontSize: "10px",
+  color: "#475569",
+  textTransform: "uppercase",
+  letterSpacing: "0.8px",
+  marginBottom: "4px",
+},
+miniStatWert: {
+  fontSize: "1.2em",
+  fontWeight: 700,
+  color: "#cbd5e1",
+},
 };
 
 export default App;
