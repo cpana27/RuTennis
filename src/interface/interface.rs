@@ -8,7 +8,6 @@ use crate::math::mathematics::{
     calc_set_betting_probs,
     monte_carlo_simulation,
     calc_set_markets_mc,
-    MonteCarloResult,
 };
 
 // ─── ERGEBNIS STRUKTUR ────────────────────────────────────────────────────────
