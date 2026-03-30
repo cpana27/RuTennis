@@ -19,6 +19,14 @@ struct AppState {
 }
 
 #[tauri::command]
+fn get_players(state: State<'_, AppState>) -> Vec<String> {
+    let db = state.db.lock().unwrap();
+    let mut names: Vec<String> = db.keys().cloned().collect();
+    names.sort();
+    names
+}
+
+#[tauri::command]
 async fn get_prediction(
     p1: String, 
     p2: String, 
@@ -66,6 +74,7 @@ fn main() {
             model: Mutex::new(Some(model)) 
         })
         .invoke_handler(tauri::generate_handler![get_prediction])
+        .invoke_handler(tauri::generate_handler![get_prediction, get_players])
         .run(tauri::generate_context!())
         .expect("Fehler beim Starten der Tauri-App");
 }
