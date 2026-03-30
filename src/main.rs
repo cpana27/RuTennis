@@ -22,7 +22,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     let file_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/data/atp_master_sorted.csv");
-    
 
     // --- 1. MATHE TEST ---
     println!("=== 🧠 MATHE ENGINE TEST ===");

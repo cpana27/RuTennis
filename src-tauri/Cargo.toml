@@ -33,3 +33,6 @@ Tennis= { path = ".." }
 
 # Die fehlenden Crates für den Tauri-Kern
 smartcore = { version = "0.3.0", features = ["serde"] }
+skillratings = "0.28.2"
+rand = "0.8.5"
+polars = "0.37.0"

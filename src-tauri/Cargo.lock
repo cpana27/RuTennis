@@ -113,8 +113,11 @@ version = "0.1.0"
 dependencies = [
  "Tennis",
  "log",
+ "polars",
+ "rand 0.8.5",
  "serde",
  "serde_json",
+ "skillratings",
  "smartcore",
  "tauri",
  "tauri-build",
