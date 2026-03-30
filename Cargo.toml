@@ -3,9 +3,17 @@ name = "Tennis"
 version = "0.1.0"
 edition = "2024"
 
+
+[lib]
+name = "tennis_lib"
+path = "src/lib.rs"
+
+
 [dependencies]
 skillratings = "0.28"
 polars = { version = "0.37", features = ["lazy", "csv"] }
 csv = "1.3"         # NEU: Um unsere Trainingsdaten rasend schnell zu speichern
 rand = "0.8"        # NEU: Für den 50/50 Split
-smartcore = "0.2.0"
+smartcore = { version = "0.3.2", features = ["serde"] }
+tauri = "2.10.3"
+serde = { version = "1.0", features = ["derive"] }

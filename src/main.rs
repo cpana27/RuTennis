@@ -1,24 +1,28 @@
 use crate::datalayer::datalayer::load_and_process_history;
+use crate::interface::interface::predict_live_match_data;
 use crate::math::mathematics::*;
 use crate::player::player::PlayerDatabase;
-use crate::interface::interface::predict_live_match;
 use std::collections::HashMap;
 use std::io;
 use std::io::Write;
 // --- NEU: SMARTCORE IMPORTE FÜR DAS TRAINING ---
-use smartcore::linalg::naive::dense_matrix::DenseMatrix;
+
+use smartcore::linalg::basic::matrix::DenseMatrix;
 use smartcore::linear::logistic_regression::LogisticRegression;
 
 pub mod datalayer;
+pub mod interface;
 mod math;
 pub mod player;
-pub mod interface;
 
 #[cfg(test)]
-pub mod backtest;
+mod test;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let file_path: &str = "src/data/atp_master_sorted.csv";
+
+
+    let file_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/data/atp_master_sorted.csv");
+    
 
     // --- 1. MATHE TEST ---
     println!("=== 🧠 MATHE ENGINE TEST ===");
@@ -46,8 +50,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // --- 4. KI DIREKT IN RUST TRAINIEREN ---
     println!("\n🧠 Trainiere KI-Modell auf {} Matches...", x_data.len());
     let x_matrix = DenseMatrix::from_2d_vec(&x_data);
-    let model = LogisticRegression::fit(&x_matrix, &y_data, Default::default())
-        .map_err(|e| e.to_string())?;
+    let y_labels: Vec<i32> = y_data.iter().map(|v| *v as i32).collect();
+
+    let model = LogisticRegression::fit(&x_matrix, &y_labels, Default::default())
+    .map_err(|e| e.to_string())?;
     println!("✅ Modell erfolgreich trainiert!");
 
     // --- 5. AUSWERTUNG DER LEGENDEN ---
@@ -119,11 +125,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Sicherheits-Check: Gibt es die Spieler in unserer Aktenwand?
         if !database.contains_key(p1_name) {
-            println!("⚠️  FEHLER: Spieler '{}' nicht gefunden. Auf genaue Schreibweise achten!", p1_name);
+            println!(
+                "⚠️  FEHLER: Spieler '{}' nicht gefunden. Auf genaue Schreibweise achten!",
+                p1_name
+            );
             continue;
         }
         if !database.contains_key(p2_name) {
-            println!("⚠️  FEHLER: Spieler '{}' nicht gefunden. Auf genaue Schreibweise achten!", p2_name);
+            println!(
+                "⚠️  FEHLER: Spieler '{}' nicht gefunden. Auf genaue Schreibweise achten!",
+                p2_name
+            );
             continue;
         }
         if surface != "Hard" && surface != "Clay" && surface != "Grass" {
@@ -132,7 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Vorhersage abfeuern!
-        if let Err(e) = predict_live_match(&database, &model, p1_name, p2_name, surface) {
+        if let Err(e) = predict_live_match_data(&database, &model, p1_name, p2_name, surface) {
             println!("⚠️ Fehler bei der Berechnung: {}", e);
         }
     }

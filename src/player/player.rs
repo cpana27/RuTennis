@@ -43,20 +43,26 @@ impl PlayerProfile {
     }
 
     pub fn get_form_winrate(&self) -> f64 {
-        if self.form_10m.is_empty() { return 0.5; }
+        if self.form_10m.is_empty() {
+            return 0.5;
+        }
         let wins = self.form_10m.iter().filter(|&&w| w).count() as f64;
         wins / self.form_10m.len() as f64
     }
 
     // NEU: Wahrscheinlichkeit, einen eigenen Aufschlagpunkt zu gewinnen (ATP Schnitt ist ca. 62%)
     pub fn get_serve_winrate(&self) -> f64 {
-        if self.serve_points_played == 0.0 { return 0.62; }
+        if self.serve_points_played == 0.0 {
+            return 0.62;
+        }
         self.serve_points_won / self.serve_points_played
     }
 
     // NEU: Wahrscheinlichkeit, einen gegnerischen Aufschlagpunkt zu gewinnen (ATP Schnitt ca. 38%)
     pub fn get_return_winrate(&self) -> f64 {
-        if self.return_points_played == 0.0 { return 0.38; }
+        if self.return_points_played == 0.0 {
+            return 0.38;
+        }
         self.return_points_won / self.return_points_played
     }
 }
@@ -69,8 +75,12 @@ pub fn process_match(
     winner: &str,
     loser: &str,
     surface: &str,
-    w_svpt: f64, w_1st_won: f64, w_2nd_won: f64, // NEU: Winner Stats
-    l_svpt: f64, l_1st_won: f64, l_2nd_won: f64, // NEU: Loser Stats
+    w_svpt: f64,
+    w_1st_won: f64,
+    w_2nd_won: f64, // NEU: Winner Stats
+    l_svpt: f64,
+    l_1st_won: f64,
+    l_2nd_won: f64, // NEU: Loser Stats
     config: &Glicko2Config,
 ) {
     let mut winner_profile = db.remove(winner).unwrap_or_else(PlayerProfile::new);
@@ -78,24 +88,42 @@ pub fn process_match(
 
     // Glicko Updates (unverändert)
     let (new_winner_glicko, new_loser_glicko) = glicko2(
-        &winner_profile.glicko_overall, &loser_profile.glicko_overall, &Outcomes::WIN, config,
+        &winner_profile.glicko_overall,
+        &loser_profile.glicko_overall,
+        &Outcomes::WIN,
+        config,
     );
     winner_profile.glicko_overall = new_winner_glicko;
     loser_profile.glicko_overall = new_loser_glicko;
 
     match surface {
         "Clay" => {
-            let (w_surf, l_surf) = glicko2(&winner_profile.glicko_surface_clay, &loser_profile.glicko_surface_clay, &Outcomes::WIN, config);
+            let (w_surf, l_surf) = glicko2(
+                &winner_profile.glicko_surface_clay,
+                &loser_profile.glicko_surface_clay,
+                &Outcomes::WIN,
+                config,
+            );
             winner_profile.glicko_surface_clay = w_surf;
             loser_profile.glicko_surface_clay = l_surf;
         }
         "Hard" => {
-            let (w_surf, l_surf) = glicko2(&winner_profile.glicko_surface_hard, &loser_profile.glicko_surface_hard, &Outcomes::WIN, config);
+            let (w_surf, l_surf) = glicko2(
+                &winner_profile.glicko_surface_hard,
+                &loser_profile.glicko_surface_hard,
+                &Outcomes::WIN,
+                config,
+            );
             winner_profile.glicko_surface_hard = w_surf;
             loser_profile.glicko_surface_hard = l_surf;
         }
         "Grass" => {
-            let (w_surf, l_surf) = glicko2(&winner_profile.glicko_surface_grass, &loser_profile.glicko_surface_grass, &Outcomes::WIN, config);
+            let (w_surf, l_surf) = glicko2(
+                &winner_profile.glicko_surface_grass,
+                &loser_profile.glicko_surface_grass,
+                &Outcomes::WIN,
+                config,
+            );
             winner_profile.glicko_surface_grass = w_surf;
             loser_profile.glicko_surface_grass = l_surf;
         }

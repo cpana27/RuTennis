@@ -33,16 +33,18 @@ pub fn calc_tiebreak_prob(pa: f64, pb: f64) -> f64 {
     // Rückwärtsinduktion
     for i in (0..=6).rev() {
         for j in (0..=6).rev() {
-            if i == 6 && j == 6 { continue; }
+            if i == 6 && j == 6 {
+                continue;
+            }
 
             let total_points = i + j;
             // Aufschlagregel im Tiebreak
             if total_points % 4 == 0 || total_points % 4 == 3 {
                 // A schlägt auf
-                v[i][j] = pa * v[i+1][j] + (1.0 - pa) * v[i][j+1];
+                v[i][j] = pa * v[i + 1][j] + (1.0 - pa) * v[i][j + 1];
             } else {
                 // B schlägt auf
-                v[i][j] = (1.0 - pb) * v[i+1][j] + pb * v[i][j+1];
+                v[i][j] = (1.0 - pb) * v[i + 1][j] + pb * v[i][j + 1];
             }
         }
     }
@@ -64,13 +66,22 @@ pub fn calc_set_prob(p_hold_a: f64, p_hold_b: f64, p_tiebreak_a: f64) -> f64 {
 
     for i in (0..=6).rev() {
         for j in (0..=6).rev() {
-            if (i == 6 && j < 5) || (i < 5 && j == 6) || (i == 5 && j == 7) || (i == 7 && j == 5) || (i == 6 && j == 6) {
+            if (i == 6 && j < 5)
+                || (i < 5 && j == 6)
+                || (i == 5 && j == 7)
+                || (i == 7 && j == 5)
+                || (i == 6 && j == 6)
+            {
                 continue;
             }
 
             let total_games = i + j;
-            let p_win_game = if total_games % 2 == 0 { p_hold_a } else { p_break_a };
-            v[i][j] = p_win_game * v[i+1][j] + (1.0 - p_win_game) * v[i][j+1];
+            let p_win_game = if total_games % 2 == 0 {
+                p_hold_a
+            } else {
+                p_break_a
+            };
+            v[i][j] = p_win_game * v[i + 1][j] + (1.0 - p_win_game) * v[i][j + 1];
         }
     }
     v[0][0]
@@ -80,7 +91,9 @@ pub fn calc_set_prob(p_hold_a: f64, p_hold_b: f64, p_tiebreak_a: f64) -> f64 {
 pub fn calc_match_prob(p_set_a: f64, best_of: u8) -> f64 {
     if best_of == 5 {
         // Grand Slams
-        p_set_a.powi(3) + 3.0 * p_set_a.powi(3) * (1.0 - p_set_a) + 6.0 * p_set_a.powi(3) * (1.0 - p_set_a).powi(2)
+        p_set_a.powi(3)
+            + 3.0 * p_set_a.powi(3) * (1.0 - p_set_a)
+            + 6.0 * p_set_a.powi(3) * (1.0 - p_set_a).powi(2)
     } else {
         // Standard (Best of 3)
         p_set_a.powi(2) + 2.0 * p_set_a.powi(2) * (1.0 - p_set_a)

@@ -1,15 +1,17 @@
+use crate::player::player::{PlayerDatabase, PlayerProfile, process_match};
 use polars::prelude::*;
+use rand::Rng;
 use skillratings::glicko2::Glicko2Config;
 use std::time::Instant;
-use rand::Rng;
-use crate::player::player::{process_match, PlayerDatabase, PlayerProfile};
 
 pub fn load_and_process_history(
     db: &mut PlayerDatabase,
-    file_path: &str
+    file_path: &str,
 ) -> Result<(Vec<Vec<f64>>, Vec<f64>), Box<dyn std::error::Error>> {
-
-    println!("Lade historische Daten inkl. Aufschlagstatistiken aus '{}'...", file_path);
+    println!(
+        "Lade historische Daten inkl. Aufschlagstatistiken aus '{}'...",
+        file_path
+    );
     let start_time = Instant::now();
 
     let df = CsvReader::from_path(file_path)?
@@ -24,13 +26,19 @@ pub fn load_and_process_history(
     let surfaces = df.column("surface")?.str()?;
 
     // NEU: Zahlen laden (wir wandeln sie alle direkt in Floats um)
-    let c_w_svpt = df.column("w_svpt")?.cast(&DataType::Float64)?; let w_svpt = c_w_svpt.f64()?;
-    let c_w_1st = df.column("w_1stWon")?.cast(&DataType::Float64)?; let w_1st = c_w_1st.f64()?;
-    let c_w_2nd = df.column("w_2ndWon")?.cast(&DataType::Float64)?; let w_2nd = c_w_2nd.f64()?;
+    let c_w_svpt = df.column("w_svpt")?.cast(&DataType::Float64)?;
+    let w_svpt = c_w_svpt.f64()?;
+    let c_w_1st = df.column("w_1stWon")?.cast(&DataType::Float64)?;
+    let w_1st = c_w_1st.f64()?;
+    let c_w_2nd = df.column("w_2ndWon")?.cast(&DataType::Float64)?;
+    let w_2nd = c_w_2nd.f64()?;
 
-    let c_l_svpt = df.column("l_svpt")?.cast(&DataType::Float64)?; let l_svpt = c_l_svpt.f64()?;
-    let c_l_1st = df.column("l_1stWon")?.cast(&DataType::Float64)?; let l_1st = c_l_1st.f64()?;
-    let c_l_2nd = df.column("l_2ndWon")?.cast(&DataType::Float64)?; let l_2nd = c_l_2nd.f64()?;
+    let c_l_svpt = df.column("l_svpt")?.cast(&DataType::Float64)?;
+    let l_svpt = c_l_svpt.f64()?;
+    let c_l_1st = df.column("l_1stWon")?.cast(&DataType::Float64)?;
+    let l_1st = c_l_1st.f64()?;
+    let c_l_2nd = df.column("l_2ndWon")?.cast(&DataType::Float64)?;
+    let l_2nd = c_l_2nd.f64()?;
 
     let config = Glicko2Config::new();
     let mut rng = rand::thread_rng();
@@ -56,7 +64,11 @@ pub fn load_and_process_history(
             let lv_2nd = l_2nd.get(i).unwrap_or(0.0);
 
             let p1_is_winner = rng.gen_bool(0.5);
-            let (p1_name, p2_name) = if p1_is_winner { (w_clean, l_clean) } else { (l_clean, w_clean) };
+            let (p1_name, p2_name) = if p1_is_winner {
+                (w_clean, l_clean)
+            } else {
+                (l_clean, w_clean)
+            };
 
             let p1_prof = db.get(p1_name).unwrap_or(&empty_profile);
             let p2_prof = db.get(p2_name).unwrap_or(&empty_profile);
@@ -67,7 +79,9 @@ pub fn load_and_process_history(
             let surface_glicko_diff = match s_clean {
                 "Clay" => p1_prof.glicko_surface_clay.rating - p2_prof.glicko_surface_clay.rating,
                 "Hard" => p1_prof.glicko_surface_hard.rating - p2_prof.glicko_surface_hard.rating,
-                "Grass" => p1_prof.glicko_surface_grass.rating - p2_prof.glicko_surface_grass.rating,
+                "Grass" => {
+                    p1_prof.glicko_surface_grass.rating - p2_prof.glicko_surface_grass.rating
+                }
                 _ => 0.0,
             };
 
@@ -81,16 +95,19 @@ pub fn load_and_process_history(
 
             // In die Matrix pushen (Jetzt 4 Variablen!)
             if p1_prof.matches_played >= 5 && p2_prof.matches_played >= 5 {
-                x_train.push(vec![glicko_diff, surface_glicko_diff, form_diff, serve_edge]);
+                x_train.push(vec![
+                    glicko_diff,
+                    surface_glicko_diff,
+                    form_diff,
+                    serve_edge,
+                ]);
                 y_train.push(if p1_is_winner { 1.0 } else { 0.0 });
             }
 
             // Normales Update in die Datenbank (Jetzt mit Stats!)
             process_match(
-                db, w_clean, l_clean, s_clean,
-                wv_svpt, wv_1st, wv_2nd,
-                lv_svpt, lv_1st, lv_2nd,
-                &config
+                db, w_clean, l_clean, s_clean, wv_svpt, wv_1st, wv_2nd, lv_svpt, lv_1st, lv_2nd,
+                &config,
             );
         }
     }

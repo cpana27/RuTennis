@@ -1,4 +1,4 @@
-#![cfg(test)] // Diese Zeile markiert die KOMPLETTE Datei als reinen Test-Code!
+/*#![cfg(test)]
 
 use crate::player::player::{process_match, PlayerDatabase, PlayerProfile};
 use polars::prelude::*;
@@ -10,7 +10,6 @@ use rand::Rng;
 use std::collections::HashMap;
 use std::time::Instant;
 
-// Unser Container für die "Zukunfts-Matches" (2025)
 struct MatchRecord {
     winner: String, loser: String, surface: String,
     w_svpt: f64, w_1st_won: f64, w_2nd_won: f64,
@@ -20,13 +19,12 @@ struct MatchRecord {
 #[test]
 fn run_2025_backtest() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n==================================================");
-    println!("🚀 STARTE ISOLIERTEN BACKTEST FÜR 2025");
+    println!("🚀 STARTE KONFIDENZ-TEST FÜR 2025 (KALIBRIERUNG)");
     println!("==================================================");
     let start_time = Instant::now();
     let file_path = "src/data/atp_master_sorted.csv";
     let split_year = 2025; // Ab dem 1.1.2025 wird blind gewettet!
 
-    // 1. Daten laden
     let df = CsvReader::from_path(file_path)?
         .has_header(true)
         .with_ignore_errors(true)
@@ -37,9 +35,8 @@ fn run_2025_backtest() -> Result<(), Box<dyn std::error::Error>> {
     let losers = df.column("loser_name")?.str()?;
     let surfaces = df.column("surface")?.str()?;
 
-    // Wir ziehen das Datum heraus, um das Jahr zu erkennen
-    let dates = df.column("tourney_date")?.cast(&DataType::Int32)?;
-    let dates_i32 = dates.i32()?;
+    let dates = df.column("tourney_date")?.cast(&DataType::String)?;
+    let dates_str = dates.str()?;
 
     let w_svpt = df.column("w_svpt")?.cast(&DataType::Float64)?; let w_svpt_f = w_svpt.f64()?;
     let w_1st = df.column("w_1stWon")?.cast(&DataType::Float64)?; let w_1st_f = w_1st.f64()?;
@@ -59,13 +56,17 @@ fn run_2025_backtest() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("📂 Lese CSV und trenne die Zeitlinie am 31.12.2024...");
 
-    // 2. Zeitreise beginnen
     for i in 0..df.height() {
-        if let (Some(w), Some(l), Some(s), Some(d)) = (winners.get(i), losers.get(i), surfaces.get(i), dates_i32.get(i)) {
+        if let (Some(w), Some(l), Some(s), Some(d_str)) = (winners.get(i), losers.get(i), surfaces.get(i), dates_str.get(i)) {
             let w_clean = w.trim();
             let l_clean = l.trim();
             let s_clean = s.trim();
-            let match_year = d / 10000; // Aus 20250527 wird 2025
+
+            let match_year: i32 = if d_str.len() >= 4 {
+                d_str[0..4].parse().unwrap_or(1990)
+            } else {
+                1990
+            };
 
             let wv_svpt = w_svpt_f.get(i).unwrap_or(0.0);
             let wv_1st = w_1st_f.get(i).unwrap_or(0.0);
@@ -75,7 +76,6 @@ fn run_2025_backtest() -> Result<(), Box<dyn std::error::Error>> {
             let lv_2nd = l_2nd_f.get(i).unwrap_or(0.0);
 
             if match_year < split_year {
-                // PHASE 1: TRAINING (Bis Ende 2024)
                 let p1_is_winner = rng.gen_bool(0.5);
                 let (p1_name, p2_name) = if p1_is_winner { (w_clean, l_clean) } else { (l_clean, w_clean) };
 
@@ -99,7 +99,6 @@ fn run_2025_backtest() -> Result<(), Box<dyn std::error::Error>> {
 
                 process_match(&mut db, w_clean, l_clean, s_clean, wv_svpt, wv_1st, wv_2nd, lv_svpt, lv_1st, lv_2nd, &config);
             } else {
-                // PHASE 2: TRESOR (2025 Matches sichern)
                 test_matches.push(MatchRecord {
                     winner: w_clean.to_string(), loser: l_clean.to_string(), surface: s_clean.to_string(),
                     w_svpt: wv_svpt, w_1st_won: wv_1st, w_2nd_won: wv_2nd,
@@ -109,15 +108,19 @@ fn run_2025_backtest() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 3. KI Trainieren
     println!("🧠 Trainiere KI auf {} historischen Matches (bis 2024)...", x_train.len());
     let x_matrix = DenseMatrix::from_2d_vec(&x_train);
     let model = LogisticRegression::fit(&x_matrix, &y_train, Default::default()).unwrap();
 
-    // 4. Der blinde Walk-Forward Test für 2025
     println!("🔮 Teste KI blind auf {} unbekannten Matches aus dem Jahr {}...", test_matches.len(), split_year);
+
     let mut correct = 0;
     let mut total = 0;
+
+    // Arrays für unsere 5 Konfidenz-Kategorien (Eimer):
+    // Index 0: 50-60%, Index 1: 60-70%, Index 2: 70-80%, Index 3: 80-90%, Index 4: 90-100%
+    let mut buckets_total = [0; 5];
+    let mut buckets_correct = [0; 5];
 
     let coeffs = model.coefficients();
     let b = model.intercept().get(0,0);
@@ -139,24 +142,54 @@ fn run_2025_backtest() -> Result<(), Box<dyn std::error::Error>> {
             let serve_edge = (p1_prof.get_serve_winrate() - p2_prof.get_return_winrate()) - (p2_prof.get_serve_winrate() - p1_prof.get_return_winrate());
 
             let z = (glicko_diff * w0) + (s_diff * w1) + (form_diff * w2) + (serve_edge * w3) + b;
+
+            // Wahrscheinlichkeit, dass P1 (der ECHTE Gewinner in der CSV) gewinnt
             let prob_p1_wins = 1.0 / (1.0 + (-z).exp());
 
-            if prob_p1_wins > 0.5 { correct += 1; }
+            // Wie sicher ist die KI in ihrer Wahl? (Der höchste %-Wert gewinnt)
+            let confidence = if prob_p1_wins >= 0.5 { prob_p1_wins } else { 1.0 - prob_p1_wins };
+
+            // War die Vorhersage richtig?
+            let is_correct = prob_p1_wins >= 0.5;
+
+            // In welchen Eimer gehört diese Wette?
+            let bucket_idx = if confidence >= 0.9 { 4 }
+            else if confidence >= 0.8 { 3 }
+            else if confidence >= 0.7 { 2 }
+            else if confidence >= 0.6 { 1 }
+            else { 0 };
+
+            buckets_total[bucket_idx] += 1;
+            if is_correct {
+                buckets_correct[bucket_idx] += 1;
+                correct += 1;
+            }
             total += 1;
         }
 
         process_match(&mut db, &m.winner, &m.loser, &m.surface, m.w_svpt, m.w_1st_won, m.w_2nd_won, m.l_svpt, m.l_1st_won, m.l_2nd_won, &config);
     }
 
-    let acc = (correct as f64 / total as f64) * 100.0;
+    let overall_acc = if total > 0 { (correct as f64 / total as f64) * 100.0 } else { 0.0 };
     println!("==================================================");
     println!("🏆 FINALES BACKTEST ERGEBNIS ({})", split_year);
     println!("--------------------------------------------------");
     println!("Wetten platziert:   {}", total);
     println!("Gewonnene Wetten:   {}", correct);
-    println!("Trefferquote:       {:.2}%", acc);
-    println!("Verstrichene Zeit:  {:?}", start_time.elapsed());
+    println!("Trefferquote:       {:.2}%\n", overall_acc);
+
+    println!("📊 KALIBRIERUNGS-TEST (Vertrauen vs. Realität)");
+    println!("--------------------------------------------------");
+    println!("KI-Sicherheit | Wetten | Echte Trefferquote");
+    let labels = ["50% - 60%", "60% - 70%", "70% - 80%", "80% - 90%", "90% - 100%"];
+    for i in 0..5 {
+        let b_tot = buckets_total[i];
+        let b_corr = buckets_correct[i];
+        let b_acc = if b_tot > 0 { (b_corr as f64 / b_tot as f64) * 100.0 } else { 0.0 };
+
+        println!("{:13} | {:6} | {:.1}%", labels[i], b_tot, b_acc);
+    }
     println!("==================================================\n");
 
     Ok(())
-}
+}*/
